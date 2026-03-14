@@ -1,0 +1,360 @@
+/* ========================================
+   GAZO98 - PC-9801風UIテーマ
+   ======================================== */
+
+/* ----------------------------------------
+   メニューバー
+   ---------------------------------------- */
+.pc98-menubar {
+    display: flex;
+    background: #fff;
+    border-bottom: 1px solid #000;
+    height: 24px;
+    flex-shrink: 0;
+    user-select: none;
+    position: relative;
+}
+
+.menu-item {
+    position: relative;
+    cursor: pointer;
+}
+
+.menu-label {
+    display: block;
+    padding: 2px 12px;
+    font-size: 14px;
+    line-height: 20px;
+    white-space: nowrap;
+}
+
+.menu-label u {
+    text-decoration: underline;
+}
+
+.menu-label:hover,
+.menu-label.active-label {
+    background: #000;
+    color: #fff;
+}
+
+.menu-label:hover u,
+.menu-label.active-label u {
+    color: #fff;
+}
+
+/* ドロップダウン（body直下にJS配置） */
+.menu-dropdown {
+    background: #fff;
+    border: 1px solid #000;
+    min-width: 180px;
+    box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.menu-entry {
+    padding: 2px 16px;
+    font-size: 14px;
+    line-height: 20px;
+    white-space: nowrap;
+    cursor: pointer;
+}
+
+.menu-entry:hover:not(.disabled) {
+    background: #000;
+    color: #fff;
+}
+
+.menu-entry.disabled {
+    color: #808080;
+    cursor: default;
+}
+
+.menu-separator {
+    height: 1px;
+    background: #808080;
+    margin: 2px 4px;
+}
+
+/* ----------------------------------------
+   ダイアログ
+   ---------------------------------------- */
+.dialog-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.pc98-dialog {
+    background: #c0c0c0;
+    border: 3px double #000;
+    min-width: 300px;
+    max-width: 80vw;
+    box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.4);
+}
+
+.dialog-titlebar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #000;
+    color: #fff;
+    padding: 2px 8px;
+    font-size: 14px;
+    line-height: 20px;
+    user-select: none;
+}
+
+.dialog-close {
+    background: #c0c0c0;
+    color: #000;
+    border: 1px outset #fff;
+    width: 18px;
+    height: 18px;
+    font-size: 12px;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    font-family: inherit;
+}
+
+.dialog-close:active {
+    border-style: inset;
+}
+
+.dialog-body {
+    padding: 16px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.dialog-buttons {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    padding: 8px 16px 16px;
+}
+
+/* ----------------------------------------
+   ボタン
+   ---------------------------------------- */
+.pc98-button {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 4px 16px;
+    background: #c0c0c0;
+    color: #000;
+    border: 2px outset #dfdfdf;
+    cursor: pointer;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.pc98-button:hover:not(.disabled) {
+    background: #d0d0d0;
+}
+
+.pc98-button:active:not(.disabled) {
+    border-style: inset;
+    padding: 5px 15px 3px 17px;
+}
+
+.pc98-button.primary {
+    font-weight: bold;
+}
+
+.pc98-button.small {
+    font-size: 12px;
+    padding: 2px 8px;
+}
+
+.pc98-button.disabled {
+    color: #808080;
+    cursor: default;
+}
+
+/* ----------------------------------------
+   セレクト（ドロップダウン）
+   ---------------------------------------- */
+.pc98-select {
+    font-family: inherit;
+    font-size: 14px;
+    padding: 2px 4px;
+    background: #fff;
+    color: #000;
+    border: 2px inset #808080;
+    cursor: pointer;
+    min-width: 120px;
+}
+
+.pc98-select:disabled {
+    background: #c0c0c0;
+    color: #808080;
+    cursor: default;
+}
+
+/* ----------------------------------------
+   スライダー
+   ---------------------------------------- */
+.pc98-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 16px;
+    background: #fff;
+    border: 2px inset #808080;
+    outline: none;
+    cursor: pointer;
+}
+
+.pc98-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 12px;
+    height: 20px;
+    background: #c0c0c0;
+    border: 2px outset #dfdfdf;
+    cursor: pointer;
+}
+
+.pc98-slider::-moz-range-thumb {
+    width: 12px;
+    height: 20px;
+    background: #c0c0c0;
+    border: 2px outset #dfdfdf;
+    cursor: pointer;
+    border-radius: 0;
+}
+
+.pc98-slider:disabled {
+    background: #c0c0c0;
+    cursor: default;
+}
+
+/* ----------------------------------------
+   チェックボックス
+   ---------------------------------------- */
+.pc98-checkbox {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.pc98-checkbox input[type="checkbox"] {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 14px;
+    height: 14px;
+    border: 2px inset #808080;
+    background: #fff;
+    cursor: pointer;
+    position: relative;
+    flex-shrink: 0;
+}
+
+.pc98-checkbox input[type="checkbox"]:checked::after {
+    content: '×';
+    position: absolute;
+    top: -2px;
+    left: 1px;
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 1;
+}
+
+.pc98-checkbox input[type="checkbox"]:disabled {
+    background: #c0c0c0;
+    cursor: default;
+}
+
+/* ----------------------------------------
+   パネル
+   ---------------------------------------- */
+.pc98-panel {
+    border: 2px solid #808080;
+    border-right-color: #fff;
+    border-bottom-color: #fff;
+    padding: 8px;
+    background: #c0c0c0;
+}
+
+.panel-title {
+    font-size: 13px;
+    font-weight: bold;
+    margin-bottom: 6px;
+    padding-bottom: 4px;
+    border-bottom: 1px solid #808080;
+}
+
+/* ----------------------------------------
+   ステータスバー
+   ---------------------------------------- */
+.pc98-statusbar {
+    display: flex;
+    align-items: center;
+    height: 22px;
+    background: #c0c0c0;
+    border-top: 1px solid #808080;
+    padding: 0 8px;
+    font-size: 13px;
+    flex-shrink: 0;
+    user-select: none;
+}
+
+.pc98-statusbar span {
+    white-space: nowrap;
+}
+
+.status-sep {
+    margin: 0 8px;
+    color: #808080;
+}
+
+#status-message {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* ----------------------------------------
+   プログレスバー（98風）
+   ---------------------------------------- */
+.pc98-progress {
+    width: 100%;
+    height: 16px;
+    background: #fff;
+    border: 2px inset #808080;
+    position: relative;
+    overflow: hidden;
+}
+
+.pc98-progress-bar {
+    height: 100%;
+    background: #000080;
+    transition: width 0.1s linear;
+}
+
+.pc98-progress-text {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    color: #000;
+    mix-blend-mode: difference;
+}

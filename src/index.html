@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAZO98 ～画嬢九八～</title>
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/pc98-theme.css">
+</head>
+<body>
+    <!-- 98風メニューバー -->
+    <div id="menubar" class="pc98-menubar">
+        <div class="menu-item" data-menu="file">
+            <span class="menu-label">ファイル(<u>F</u>)</span>
+            <div class="menu-dropdown">
+                <div class="menu-entry" data-action="open">画像を開く...</div>
+                <div class="menu-separator"></div>
+                <div class="menu-entry disabled" data-action="save-png">保存(PNG)</div>
+                <div class="menu-entry disabled" data-action="save-bmp">保存(BMP)</div>
+                <div class="menu-entry disabled" data-action="save-mag">保存(MAG)</div>
+                <div class="menu-separator"></div>
+                <div class="menu-entry" data-action="close">閉じる</div>
+            </div>
+        </div>
+        <div class="menu-item" data-menu="convert">
+            <span class="menu-label">変換(<u>C</u>)</span>
+            <div class="menu-dropdown">
+                <div class="menu-entry disabled" data-action="convert">変換実行</div>
+                <div class="menu-entry disabled" data-action="recrop">クロップやり直し</div>
+                <div class="menu-entry disabled" data-action="reset">リセット</div>
+            </div>
+        </div>
+        <div class="menu-item" data-menu="palette">
+            <span class="menu-label">パレット(<u>P</u>)</span>
+            <div class="menu-dropdown">
+                <div class="menu-entry disabled" data-action="palette-auto">自動生成</div>
+                <div class="menu-entry disabled" data-action="palette-auto-skin">自動生成（肌感重視）</div>
+                <div class="menu-entry disabled" data-action="palette-preset">プリセット選択</div>
+                <div class="menu-entry disabled" data-action="palette-edit">パレット編集</div>
+                <div class="menu-separator"></div>
+                <div class="menu-entry disabled" data-action="palette-import">インポート</div>
+                <div class="menu-entry disabled" data-action="palette-export">エクスポート</div>
+            </div>
+        </div>
+        <div class="menu-item" data-menu="view">
+            <span class="menu-label">表示(<u>V</u>)</span>
+            <div class="menu-dropdown">
+                <div class="menu-entry disabled" data-action="view-original">原画像</div>
+                <div class="menu-entry disabled" data-action="view-converted">変換後</div>
+                <div class="menu-entry disabled" data-action="view-compare">スワイプ比較</div>
+                <div class="menu-separator"></div>
+                <div class="menu-entry disabled" data-action="view-zoom">拡大表示</div>
+                <div class="menu-entry disabled" data-action="view-effects">エフェクトON/OFF</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- メインコンテンツエリア -->
+    <div id="main-content">
+        <!-- プレビューエリア -->
+        <div id="preview-area">
+            <div id="drop-zone" class="drop-zone">
+                <div class="drop-message">
+                    <p>ここに画像をドラッグ＆ドロップ</p>
+                    <p>または</p>
+                    <button id="btn-open" class="pc98-button">[ ファイルを開く ]</button>
+                </div>
+            </div>
+            <canvas id="preview-canvas" style="display: none;"></canvas>
+            <!-- クロップ操作バー -->
+            <div id="crop-bar" class="crop-bar" style="display: none;">
+                <div class="crop-bar-inner">
+                    <span class="crop-info" id="crop-info">8:5 固定比率</span>
+                    <label class="crop-bar-label" for="resolution-select">解像度:</label>
+                    <select id="resolution-select" class="pc98-select">
+                        <option value="640x400" selected>640×400</option>
+                        <option value="640x200">640×200</option>
+                        <option value="320x200">320×200</option>
+                        <option value="keep">入力維持</option>
+                    </select>
+                    <button id="btn-crop-confirm" class="pc98-button primary">[ 決定 ]</button>
+                    <button id="btn-crop-cancel" class="pc98-button">[ キャンセル ]</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- コントロールパネル -->
+        <div id="control-panel">
+            <!-- パレット表示 -->
+            <div class="pc98-panel" id="palette-panel">
+                <div class="panel-title">パレット</div>
+                <div id="palette-display" class="palette-grid">
+                    <!-- 16色のパレットセルを動的生成 -->
+                </div>
+                <button class="pc98-button small disabled" id="btn-palette-edit" disabled>[ 編集 ]</button>
+            </div>
+
+            <!-- パラメータパネル -->
+            <div class="pc98-panel" id="param-panel">
+                <div class="panel-title">パラメータ</div>
+
+                <div class="param-row">
+                    <label for="dither-select">ディザ:</label>
+                    <select id="dither-select" class="pc98-select" disabled>
+                        <option value="checkerboard" selected>市松パターン</option>
+                        <option value="bayer">Bayer行列</option>
+                        <option value="floyd-steinberg">Floyd-Steinberg</option>
+                        <option value="random">ランダム</option>
+                    </select>
+                </div>
+
+                <div class="param-row">
+                    <label for="dither-strength">強度:</label>
+                    <div class="slider-container">
+                        <input type="range" id="dither-strength" class="pc98-slider" min="0" max="100" value="80" disabled>
+                        <span id="dither-strength-value" class="slider-value">80%</span>
+                    </div>
+                </div>
+
+                <div class="param-row">
+                    <label>エフェクト:</label>
+                    <div class="effect-toggles">
+                        <label class="pc98-checkbox">
+                            <input type="checkbox" id="effect-scanline" disabled>
+                            <span>スキャンライン</span>
+                        </label>
+                        <label class="pc98-checkbox">
+                            <input type="checkbox" id="effect-crt" disabled>
+                            <span>CRTにじみ</span>
+                        </label>
+                        <label class="pc98-checkbox">
+                            <input type="checkbox" id="effect-sharp" disabled>
+                            <span>ドット感強調</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- アクションバー -->
+        <div id="action-bar">
+            <button id="btn-convert" class="pc98-button primary disabled" disabled>[ 変換実行 ]</button>
+            <button id="btn-save" class="pc98-button disabled" disabled>[ 保存 ▼ ]</button>
+        </div>
+    </div>
+
+    <!-- ステータスバー -->
+    <div id="statusbar" class="pc98-statusbar">
+        <span id="status-app">GAZO98 v1.0</span>
+        <span class="status-sep">|</span>
+        <span id="status-resolution">---</span>
+        <span class="status-sep">|</span>
+        <span id="status-colors">16colors</span>
+        <span class="status-sep">|</span>
+        <span id="status-message">Ready</span>
+    </div>
+
+    <!-- ダイアログコンテナ（オーバーレイ） -->
+    <div id="dialog-overlay" class="dialog-overlay" style="display: none;">
+        <div id="dialog-container" class="pc98-dialog">
+            <div class="dialog-titlebar">
+                <span class="dialog-title"></span>
+                <button class="dialog-close">×</button>
+            </div>
+            <div class="dialog-body"></div>
+            <div class="dialog-buttons"></div>
+        </div>
+    </div>
+
+    <!-- 非表示のファイル入力 -->
+    <input type="file" id="file-input" accept="image/jpeg,image/png,image/bmp,image/webp,image/gif" style="display: none;">
+    <input type="file" id="palette-file-input" accept=".json" style="display: none;">
+
+    <script src="js/ui/menu.js"></script>
+    <script src="js/ui/dialog.js"></script>
+    <script src="js/ui/statusbar.js"></script>
+    <script src="js/ui/crop.js"></script>
+    <script src="js/ui/palette-editor.js"></script>
+    <script src="js/engine/palette.js"></script>
+    <script src="js/io/file-loader.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
