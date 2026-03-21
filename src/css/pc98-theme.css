@@ -135,6 +135,8 @@
     padding: 16px;
     font-size: 14px;
     line-height: 1.6;
+    max-height: 60vh;
+    overflow-y: auto;
 }
 
 .dialog-buttons {

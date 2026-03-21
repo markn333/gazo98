@@ -95,6 +95,89 @@
                 <button class="pc98-button small disabled" id="btn-palette-edit" disabled>[ 編集 ]</button>
             </div>
 
+            <!-- 肌感改善パネル -->
+            <div class="pc98-panel" id="skin-panel">
+                <div class="panel-title">肌感改善</div>
+
+                <div class="param-row">
+                    <label for="skin-mode">モード:</label>
+                    <select id="skin-mode" class="pc98-select" disabled>
+                        <option value="off" selected>OFF</option>
+                        <option value="weight">肌色優先</option>
+                        <option value="separate">領域分離</option>
+                    </select>
+                </div>
+
+                <!-- 肌色優先モード設定 -->
+                <div id="skin-weight-settings" style="display:none;">
+                    <div class="param-row">
+                        <label for="skin-weight">重み:</label>
+                        <div class="slider-container">
+                            <input type="range" id="skin-weight" class="pc98-slider" min="10" max="50" value="30">
+                            <span id="skin-weight-value" class="slider-value">3.0</span>
+                        </div>
+                    </div>
+                    <div class="param-row">
+                        <label for="skin-min-colors">最低枠:</label>
+                        <select id="skin-min-colors" class="pc98-select">
+                            <option value="0">0色</option>
+                            <option value="2">2色</option>
+                            <option value="4" selected>4色</option>
+                            <option value="6">6色</option>
+                            <option value="8">8色</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- 領域分離モード設定 -->
+                <div id="skin-separate-settings" style="display:none;">
+                    <div class="param-row">
+                        <label for="skin-split-mode">配分:</label>
+                        <select id="skin-split-mode" class="pc98-select">
+                            <option value="auto" selected>自動</option>
+                            <option value="manual">手動</option>
+                        </select>
+                    </div>
+                    <div class="param-row" id="skin-palette-count-row" style="display:none;">
+                        <label for="skin-palette-count">肌枠:</label>
+                        <div class="slider-container">
+                            <input type="range" id="skin-palette-count" class="pc98-slider" min="4" max="12" value="8">
+                            <span id="skin-palette-count-value" class="slider-value">8色</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 肌専用ディザ -->
+                <div class="param-row">
+                    <label class="pc98-checkbox">
+                        <input type="checkbox" id="skin-dither-enable" disabled>
+                        <span>肌専用ディザ</span>
+                    </label>
+                </div>
+                <div id="skin-dither-settings" style="display:none;">
+                    <div class="param-row">
+                        <label for="skin-dither-pattern">パターン:</label>
+                        <select id="skin-dither-pattern" class="pc98-select">
+                            <option value="smooth" selected>スムース</option>
+                            <option value="halftone">ハーフトーン</option>
+                            <option value="diagonal">斜め45°</option>
+                        </select>
+                    </div>
+                    <div class="param-row">
+                        <label for="skin-blend-width">ブレンド:</label>
+                        <div class="slider-container">
+                            <input type="range" id="skin-blend-width" class="pc98-slider" min="2" max="8" value="4">
+                            <span id="skin-blend-width-value" class="slider-value">4px</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="param-row">
+                    <button class="pc98-button small" id="btn-mask-preview" disabled>[ マスク確認 ]</button>
+                    <button class="pc98-button small" id="btn-skin-detect-settings" disabled>[ 検出設定 ]</button>
+                </div>
+            </div>
+
             <!-- パラメータパネル -->
             <div class="pc98-panel" id="param-panel">
                 <div class="panel-title">パラメータ</div>
@@ -177,7 +260,13 @@
     <script src="js/ui/crop.js"></script>
     <script src="js/ui/palette-editor.js"></script>
     <script src="js/engine/palette.js"></script>
+    <script src="js/engine/skin-detect.js"></script>
+    <script src="js/engine/posteffect.js"></script>
+    <script src="js/ui/preview.js"></script>
     <script src="js/io/file-loader.js"></script>
+    <script src="js/io/png-export.js"></script>
+    <script src="js/io/bmp-export.js"></script>
+    <script src="js/io/mag-export.js"></script>
     <script src="js/app.js"></script>
 </body>
 </html>

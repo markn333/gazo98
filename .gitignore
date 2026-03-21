@@ -1,0 +1,8 @@
+node_modules/
+test-results/
+src/test/golden/
+src/test/images/person.png
+src/test/images/OK.MAG
+src/test/images/NG.mag
+src/test/images/NG02.mag
+src/test/images/test_output.mag

@@ -1,0 +1,26 @@
+{
+  "name": "gazo98",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "npx playwright test",
+    "test:ui": "npx playwright test --ui",
+    "test:headed": "npx playwright test --headed"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/markn333/gazo98.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/markn333/gazo98/issues"
+  },
+  "homepage": "https://github.com/markn333/gazo98#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.58.2"
+  }
+}

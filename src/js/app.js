@@ -30,7 +30,10 @@ const App = (() => {
         currentPalette: null, // 現在の16色パレット
         fileName: null,
         imageLoaded: false,
-        phase: 'idle'  // 'idle' | 'crop' | 'ready' | 'converting' | 'done'
+        phase: 'idle',  // 'idle' | 'crop' | 'ready' | 'converting' | 'done'
+        skinMask: null,       // 肌色マスク（Uint8Array）
+        skinDetectParams: { ...SkinDetect.DEFAULT_PARAMS },
+        maskPreviewActive: false
     };
 
     /* DOM参照 */
@@ -42,6 +45,9 @@ const App = (() => {
     let controlPanel = null;
     let resolutionSelect = null;
     let paletteFileInput = null;
+
+    /* Web Worker */
+    let worker = null;
 
     function init() {
         previewCanvas = document.getElementById('preview-canvas');
@@ -57,9 +63,13 @@ const App = (() => {
         Dialog.init();
         StatusBar.init();
         FileLoader.init(onImageLoaded);
+        initWorker();
 
         setupMenuActions();
         setupButtons();
+        setupSkinControls();
+        setupEffectControls();
+        Preview.init(previewCanvas, previewArea);
         initPaletteDisplay();
 
         StatusBar.setMessage('Ready - 画像をドラッグ＆ドロップしてください');
@@ -68,6 +78,9 @@ const App = (() => {
     function setupMenuActions() {
         /* ファイルメニュー */
         Menu.on('open', () => FileLoader.openDialog());
+        Menu.on('save-png', () => savePNG());
+        Menu.on('save-bmp', () => saveBMP());
+        Menu.on('save-mag', () => saveMAG());
         Menu.on('close', () => closeImage());
 
         /* 変換メニュー */
@@ -82,6 +95,12 @@ const App = (() => {
         Menu.on('palette-edit', () => editPalette());
         Menu.on('palette-import', () => importPalette());
         Menu.on('palette-export', () => exportPalette());
+
+        /* 表示メニュー */
+        Menu.on('view-original', () => setViewMode('original'));
+        Menu.on('view-converted', () => setViewMode('converted'));
+        Menu.on('view-compare', () => setViewMode('compare'));
+        Menu.on('view-zoom', () => cycleZoom());
     }
 
     function setupButtons() {
@@ -148,6 +167,409 @@ const App = (() => {
         }
     }
 
+    /* --- Web Worker 初期化 --- */
+    function initWorker() {
+        worker = new Worker('js/worker/convert-worker.js');
+        worker.onmessage = function(e) {
+            const msg = e.data;
+            switch (msg.type) {
+                case 'progress':
+                    StatusBar.setMessage(`処理中... ${msg.phase} ${msg.percent}%`);
+                    break;
+                case 'palette-result':
+                    onWorkerPaletteResult(msg.palette);
+                    break;
+                case 'convert-result':
+                    onWorkerConvertResult(msg);
+                    break;
+                case 'mask-result':
+                    onWorkerMaskResult(msg);
+                    break;
+            }
+        };
+        worker.onerror = function(err) {
+            StatusBar.setMessage('Worker エラー: ' + err.message);
+            state.phase = 'ready';
+        };
+    }
+
+    function onWorkerPaletteResult(palette) {
+        setPalette(palette);
+        StatusBar.setMessage('パレット自動生成完了');
+    }
+
+    function onWorkerConvertResult(msg) {
+        const imageData = new ImageData(
+            new Uint8ClampedArray(msg.data),
+            msg.width,
+            msg.height
+        );
+        state.convertedImage = imageData;
+        state.phase = 'done';
+
+        /* Previewに原画像と変換後画像をセット */
+        Preview.setImages(state.croppedImage, imageData);
+        previewCanvas.className = 'preview-mode';
+
+        /* エフェクトが有効なら適用して表示 */
+        applyEffectsAndShow();
+
+        Menu.enableEntry('reset');
+        Menu.enableEntry('save-png');
+        Menu.enableEntry('save-bmp');
+        Menu.enableEntry('save-mag');
+        Menu.enableEntry('view-original');
+        Menu.enableEntry('view-converted');
+        Menu.enableEntry('view-compare');
+        Menu.enableEntry('view-zoom');
+        enableEffectControls();
+        StatusBar.setColors(state.currentPalette.length);
+        StatusBar.setMessage(`変換完了: ${imageData.width}×${imageData.height} / ${state.currentPalette.length}色`);
+    }
+
+    function onWorkerMaskResult(msg) {
+        state.skinMask = new Uint8Array(msg.mask);
+        const ratio = ((msg.skinPixelCount / msg.totalPixels) * 100).toFixed(1);
+        StatusBar.setMessage(`肌色検出: ${msg.skinPixelCount}px (${ratio}%)`);
+
+        if (state.maskPreviewActive) {
+            showMaskOverlay();
+        }
+    }
+
+    /* --- 肌感改善UI制御 --- */
+    function setupSkinControls() {
+        const skinMode = document.getElementById('skin-mode');
+        const skinWeight = document.getElementById('skin-weight');
+        const skinWeightValue = document.getElementById('skin-weight-value');
+        const skinMinColors = document.getElementById('skin-min-colors');
+        const skinSplitMode = document.getElementById('skin-split-mode');
+        const skinPaletteCount = document.getElementById('skin-palette-count');
+        const skinPaletteCountValue = document.getElementById('skin-palette-count-value');
+        const skinDitherEnable = document.getElementById('skin-dither-enable');
+        const skinDitherPattern = document.getElementById('skin-dither-pattern');
+        const skinBlendWidth = document.getElementById('skin-blend-width');
+        const skinBlendWidthValue = document.getElementById('skin-blend-width-value');
+        const btnMaskPreview = document.getElementById('btn-mask-preview');
+        const btnSkinDetectSettings = document.getElementById('btn-skin-detect-settings');
+
+        /* モード切替 */
+        skinMode.addEventListener('change', () => {
+            const mode = skinMode.value;
+            document.getElementById('skin-weight-settings').style.display = mode === 'weight' ? '' : 'none';
+            document.getElementById('skin-separate-settings').style.display = mode === 'separate' ? '' : 'none';
+
+            /* モード変更時にパレット再生成 */
+            if (state.croppedImage && mode !== 'off') {
+                generateSkinPalette();
+            }
+        });
+
+        /* 重みスライダー */
+        skinWeight.addEventListener('input', () => {
+            skinWeightValue.textContent = (skinWeight.value / 10).toFixed(1);
+        });
+
+        /* 領域分離: 配分方式 */
+        skinSplitMode.addEventListener('change', () => {
+            document.getElementById('skin-palette-count-row').style.display =
+                skinSplitMode.value === 'manual' ? '' : 'none';
+        });
+
+        /* 肌色枠数スライダー */
+        skinPaletteCount.addEventListener('input', () => {
+            skinPaletteCountValue.textContent = skinPaletteCount.value + '色';
+        });
+
+        /* 肌専用ディザ */
+        skinDitherEnable.addEventListener('change', () => {
+            document.getElementById('skin-dither-settings').style.display =
+                skinDitherEnable.checked ? '' : 'none';
+        });
+
+        /* ブレンド幅 */
+        skinBlendWidth.addEventListener('input', () => {
+            skinBlendWidthValue.textContent = skinBlendWidth.value + 'px';
+        });
+
+        /* マスク確認 */
+        btnMaskPreview.addEventListener('click', () => {
+            if (state.maskPreviewActive) {
+                hideMaskOverlay();
+            } else {
+                requestMaskPreview();
+            }
+        });
+
+        /* 検出設定ダイアログ */
+        btnSkinDetectSettings.addEventListener('click', () => {
+            showSkinDetectDialog();
+        });
+    }
+
+    function enableSkinControls() {
+        document.getElementById('skin-mode').disabled = false;
+        document.getElementById('skin-dither-enable').disabled = false;
+        document.getElementById('btn-mask-preview').disabled = false;
+        document.getElementById('btn-skin-detect-settings').disabled = false;
+    }
+
+    function generateSkinPalette() {
+        if (!state.croppedImage) return;
+
+        const skinMode = document.getElementById('skin-mode').value;
+        const img = state.croppedImage;
+
+        if (skinMode === 'weight') {
+            const skinWeight = document.getElementById('skin-weight').value / 10;
+            const minSkinColors = parseInt(document.getElementById('skin-min-colors').value);
+
+            StatusBar.setMessage('肌色優先パレット生成中...');
+            worker.postMessage({
+                type: 'median-cut-weighted',
+                data: img.data,
+                totalPixels: img.width * img.height,
+                numColors: PC98.PALETTE_SIZE,
+                skinWeight: skinWeight,
+                minSkinColors: minSkinColors,
+                detectParams: state.skinDetectParams
+            });
+        } else if (skinMode === 'separate') {
+            const splitMode = document.getElementById('skin-split-mode').value;
+            const skinPaletteCount = parseInt(document.getElementById('skin-palette-count').value);
+
+            StatusBar.setMessage('領域分離パレット生成中...');
+            worker.postMessage({
+                type: 'median-cut-separate',
+                data: img.data,
+                width: img.width,
+                height: img.height,
+                numColors: PC98.PALETTE_SIZE,
+                splitMode: splitMode,
+                skinPaletteCount: skinPaletteCount,
+                detectParams: state.skinDetectParams
+            });
+        }
+    }
+
+    function requestMaskPreview() {
+        if (!state.croppedImage) return;
+
+        StatusBar.setMessage('肌色マスク生成中...');
+        const img = state.croppedImage;
+        worker.postMessage({
+            type: 'generate-mask',
+            data: img.data,
+            width: img.width,
+            height: img.height,
+            detectParams: state.skinDetectParams
+        });
+        state.maskPreviewActive = true;
+        document.getElementById('btn-mask-preview').textContent = '[ マスク解除 ]';
+    }
+
+    function showMaskOverlay() {
+        if (!state.croppedImage || !state.skinMask) return;
+
+        const w = state.croppedImage.width;
+        const h = state.croppedImage.height;
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = w;
+        tempCanvas.height = h;
+        const tempCtx = tempCanvas.getContext('2d');
+
+        /* ベース画像を描画 */
+        tempCtx.putImageData(state.convertedImage || state.croppedImage, 0, 0);
+
+        /* マスクオーバーレイを描画 */
+        const overlay = SkinDetect.createOverlay(state.skinMask, w, h);
+        const overlayCanvas = document.createElement('canvas');
+        overlayCanvas.width = w;
+        overlayCanvas.height = h;
+        const overlayCtx = overlayCanvas.getContext('2d');
+        overlayCtx.putImageData(overlay, 0, 0);
+        tempCtx.drawImage(overlayCanvas, 0, 0);
+
+        previewCanvas.className = 'preview-mode';
+        drawCroppedPreview(tempCanvas);
+    }
+
+    function hideMaskOverlay() {
+        state.maskPreviewActive = false;
+        document.getElementById('btn-mask-preview').textContent = '[ マスク確認 ]';
+
+        if (!state.croppedImage) return;
+
+        /* 元画像に戻す */
+        const src = state.convertedImage || state.croppedImage;
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = src.width;
+        tempCanvas.height = src.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCtx.putImageData(src, 0, 0);
+        previewCanvas.className = 'preview-mode';
+        drawCroppedPreview(tempCanvas);
+    }
+
+    function showSkinDetectDialog() {
+        const p = state.skinDetectParams;
+        const container = document.createElement('div');
+        container.innerHTML = `
+            <div class="param-row"><label>H min:</label>
+                <div class="slider-container">
+                    <input type="range" class="pc98-slider" id="sd-hmin" min="0" max="60" value="${p.hMin}">
+                    <span class="slider-value" id="sd-hmin-v">${p.hMin}°</span>
+                </div></div>
+            <div class="param-row"><label>H max:</label>
+                <div class="slider-container">
+                    <input type="range" class="pc98-slider" id="sd-hmax" min="0" max="90" value="${p.hMax}">
+                    <span class="slider-value" id="sd-hmax-v">${p.hMax}°</span>
+                </div></div>
+            <div class="param-row"><label>S min:</label>
+                <div class="slider-container">
+                    <input type="range" class="pc98-slider" id="sd-smin" min="0" max="100" value="${Math.round(p.sMin * 100)}">
+                    <span class="slider-value" id="sd-smin-v">${p.sMin.toFixed(2)}</span>
+                </div></div>
+            <div class="param-row"><label>S max:</label>
+                <div class="slider-container">
+                    <input type="range" class="pc98-slider" id="sd-smax" min="0" max="100" value="${Math.round(p.sMax * 100)}">
+                    <span class="slider-value" id="sd-smax-v">${p.sMax.toFixed(2)}</span>
+                </div></div>
+            <div class="param-row"><label>V min:</label>
+                <div class="slider-container">
+                    <input type="range" class="pc98-slider" id="sd-vmin" min="0" max="100" value="${Math.round(p.vMin * 100)}">
+                    <span class="slider-value" id="sd-vmin-v">${p.vMin.toFixed(2)}</span>
+                </div></div>
+            <div class="param-row"><label>V max:</label>
+                <div class="slider-container">
+                    <input type="range" class="pc98-slider" id="sd-vmax" min="0" max="100" value="${Math.round(p.vMax * 100)}">
+                    <span class="slider-value" id="sd-vmax-v">${p.vMax.toFixed(2)}</span>
+                </div></div>
+        `;
+
+        /* スライダーのリアルタイム更新 */
+        const bindSlider = (id, suffix, fmt) => {
+            const el = container.querySelector('#' + id);
+            const vEl = container.querySelector('#' + id + '-v');
+            el.addEventListener('input', () => { vEl.textContent = fmt(el.value); });
+        };
+        bindSlider('sd-hmin', 'v', v => v + '°');
+        bindSlider('sd-hmax', 'v', v => v + '°');
+        bindSlider('sd-smin', 'v', v => (v / 100).toFixed(2));
+        bindSlider('sd-smax', 'v', v => (v / 100).toFixed(2));
+        bindSlider('sd-vmin', 'v', v => (v / 100).toFixed(2));
+        bindSlider('sd-vmax', 'v', v => (v / 100).toFixed(2));
+
+        Dialog.show({
+            title: '肌色検出パラメータ',
+            body: container,
+            buttons: [
+                { label: 'OK', value: 'ok' },
+                { label: 'デフォルト', value: 'default' },
+                { label: 'Cancel', value: 'cancel' }
+            ]
+        }).then(result => {
+            if (result === 'ok') {
+                state.skinDetectParams = {
+                    hMin: parseInt(container.querySelector('#sd-hmin').value),
+                    hMax: parseInt(container.querySelector('#sd-hmax').value),
+                    sMin: parseInt(container.querySelector('#sd-smin').value) / 100,
+                    sMax: parseInt(container.querySelector('#sd-smax').value) / 100,
+                    vMin: parseInt(container.querySelector('#sd-vmin').value) / 100,
+                    vMax: parseInt(container.querySelector('#sd-vmax').value) / 100
+                };
+                state.skinMask = null;
+                StatusBar.setMessage('肌色検出パラメータを更新しました');
+            } else if (result === 'default') {
+                state.skinDetectParams = { ...SkinDetect.DEFAULT_PARAMS };
+                state.skinMask = null;
+                StatusBar.setMessage('肌色検出パラメータをデフォルトに戻しました');
+            }
+        });
+    }
+
+    function getSkinOptions() {
+        const skinMode = document.getElementById('skin-mode').value;
+        const skinDitherEnable = document.getElementById('skin-dither-enable').checked;
+
+        /* モードOFFかつディザも無効なら不要 */
+        if (skinMode === 'off' && !skinDitherEnable) return null;
+
+        return {
+            mode: skinMode,
+            detectParams: state.skinDetectParams,
+            skinDither: {
+                enabled: skinDitherEnable,
+                pattern: document.getElementById('skin-dither-pattern').value,
+                blendWidth: parseInt(document.getElementById('skin-blend-width').value)
+            }
+        };
+    }
+
+    /* --- エフェクトUI制御 --- */
+    function setupEffectControls() {
+        const scanline = document.getElementById('effect-scanline');
+        const crt = document.getElementById('effect-crt');
+        const sharp = document.getElementById('effect-sharp');
+
+        const onEffectChange = () => {
+            if (state.convertedImage) applyEffectsAndShow();
+        };
+
+        if (scanline) scanline.addEventListener('change', onEffectChange);
+        if (crt) crt.addEventListener('change', onEffectChange);
+        if (sharp) sharp.addEventListener('change', onEffectChange);
+    }
+
+    function enableEffectControls() {
+        document.getElementById('effect-scanline').disabled = false;
+        document.getElementById('effect-crt').disabled = false;
+        document.getElementById('effect-sharp').disabled = false;
+    }
+
+    function getEffectOptions() {
+        return {
+            scanline: { enabled: document.getElementById('effect-scanline').checked, strength: 50 },
+            crt: { enabled: document.getElementById('effect-crt').checked, strength: 50 },
+            sharp: { enabled: document.getElementById('effect-sharp').checked, strength: 50 }
+        };
+    }
+
+    function applyEffectsAndShow() {
+        if (!state.convertedImage) return;
+
+        const effects = getEffectOptions();
+        const hasEffect = effects.scanline.enabled || effects.crt.enabled || effects.sharp.enabled;
+
+        let displayImage;
+        if (hasEffect) {
+            displayImage = PostEffect.apply(state.convertedImage, effects);
+        } else {
+            displayImage = state.convertedImage;
+        }
+
+        Preview.setConvertedImage(displayImage);
+        Preview.render();
+    }
+
+    /* --- プレビューモード制御 --- */
+    function setViewMode(newMode) {
+        Preview.setMode(newMode);
+        StatusBar.setMessage(
+            newMode === 'original' ? '表示: 原画像' :
+            newMode === 'converted' ? '表示: 変換後' :
+            '表示: スワイプ比較（ドラッグで分割位置を移動）'
+        );
+    }
+
+    function cycleZoom() {
+        const current = Preview.getZoom();
+        const next = current >= 4 ? 1 : current * 2;
+        Preview.setZoom(next);
+        StatusBar.setMessage(`ズーム: ${next}x`);
+    }
+
     /* --- パレット状態管理 --- */
     function setPalette(palette) {
         state.currentPalette = palette;
@@ -176,6 +598,12 @@ const App = (() => {
             btnPaletteEdit.disabled = false;
         }
 
+        /* ディザUIを有効化 */
+        const ditherSelect = document.getElementById('dither-select');
+        const ditherStrength = document.getElementById('dither-strength');
+        if (ditherSelect) ditherSelect.disabled = false;
+        if (ditherStrength) ditherStrength.disabled = false;
+
         const btnConvert = document.getElementById('btn-convert');
         if (btnConvert) {
             btnConvert.classList.remove('disabled');
@@ -189,6 +617,7 @@ const App = (() => {
         Menu.enableEntry('palette-preset');
         Menu.enableEntry('palette-import');
         Menu.enableEntry('recrop');
+        enableSkinControls();
     }
 
     /* --- パレットメニュー操作 --- */
@@ -196,18 +625,26 @@ const App = (() => {
         if (!state.croppedImage) return;
 
         StatusBar.setMessage('パレット自動生成中...');
-        const palette = Palette.medianCut(state.croppedImage);
-        setPalette(palette);
-        StatusBar.setMessage('パレット自動生成完了（メディアンカット法）');
+        const img = state.croppedImage;
+        worker.postMessage({
+            type: 'median-cut',
+            data: img.data,
+            totalPixels: img.width * img.height,
+            numColors: PC98.PALETTE_SIZE
+        });
     }
 
     function autoPaletteSkinBias() {
         if (!state.croppedImage) return;
 
         StatusBar.setMessage('パレット自動生成中（肌感重視）...');
-        const palette = Palette.medianCutSkinBias(state.croppedImage);
-        setPalette(palette);
-        StatusBar.setMessage('パレット自動生成完了（肌感重視メディアンカット）');
+        const img = state.croppedImage;
+        worker.postMessage({
+            type: 'median-cut-skin',
+            data: img.data,
+            totalPixels: img.width * img.height,
+            numColors: PC98.PALETTE_SIZE
+        });
     }
 
     function showPresetDialog() {
@@ -220,38 +657,67 @@ const App = (() => {
 
         let selectedKey = 'default';
 
-        presets.forEach(preset => {
-            const item = document.createElement('div');
-            item.className = 'preset-item';
-            if (preset.key === selectedKey) item.classList.add('selected');
+        /* カテゴリ別に表示 */
+        const categories = [
+            { key: 'general', label: '─ 汎用 ─' },
+            { key: 'eroge', label: '─ エロゲ風 ─' }
+        ];
 
-            const nameSpan = document.createElement('span');
-            nameSpan.textContent = preset.name;
+        categories.forEach(cat => {
+            const catPresets = presets.filter(p => p.category === cat.key);
+            if (catPresets.length === 0) return;
 
-            /* プレビュー色チップ */
-            const colorsDiv = document.createElement('div');
-            colorsDiv.className = 'preset-colors';
-            const presetColors = Palette.getPreset(preset.key);
-            presetColors.slice(0, 8).forEach(c => {
-                const chip = document.createElement('div');
-                chip.className = 'preset-color-chip';
-                chip.style.background = Palette.toCSS(c);
-                colorsDiv.appendChild(chip);
+            const catLabel = document.createElement('div');
+            catLabel.className = 'preset-category';
+            catLabel.textContent = cat.label;
+            list.appendChild(catLabel);
+
+            catPresets.forEach(preset => {
+                const item = document.createElement('div');
+                item.className = 'preset-item';
+                if (preset.key === selectedKey) item.classList.add('selected');
+
+                const nameSpan = document.createElement('span');
+                nameSpan.textContent = preset.name;
+
+                const colorsDiv = document.createElement('div');
+                colorsDiv.className = 'preset-colors';
+                const presetColors = Palette.getPreset(preset.key);
+                presetColors.slice(0, 8).forEach(c => {
+                    const chip = document.createElement('div');
+                    chip.className = 'preset-color-chip';
+                    chip.style.background = Palette.toCSS(c);
+                    colorsDiv.appendChild(chip);
+                });
+
+                item.appendChild(nameSpan);
+                item.appendChild(colorsDiv);
+
+                item.addEventListener('click', () => {
+                    list.querySelectorAll('.preset-item').forEach(el => el.classList.remove('selected'));
+                    item.classList.add('selected');
+                    selectedKey = preset.key;
+                });
+
+                list.appendChild(item);
             });
-
-            item.appendChild(nameSpan);
-            item.appendChild(colorsDiv);
-
-            item.addEventListener('click', () => {
-                list.querySelectorAll('.preset-item').forEach(el => el.classList.remove('selected'));
-                item.classList.add('selected');
-                selectedKey = preset.key;
-            });
-
-            list.appendChild(item);
         });
 
         container.appendChild(list);
+
+        /* 自動微調整チェックボックス */
+        const adjustRow = document.createElement('div');
+        adjustRow.className = 'param-row';
+        adjustRow.style.marginTop = '8px';
+        adjustRow.style.borderTop = '1px solid #c0c0c0';
+        adjustRow.style.paddingTop = '6px';
+        adjustRow.innerHTML = `
+            <label class="pc98-checkbox">
+                <input type="checkbox" id="preset-auto-adjust">
+                <span>非肌色枠を画像に合わせて自動調整</span>
+            </label>
+        `;
+        container.appendChild(adjustRow);
 
         Dialog.show({
             title: 'プリセットパレット選択',
@@ -263,9 +729,24 @@ const App = (() => {
         }).then(result => {
             if (result === 'ok') {
                 const palette = Palette.getPreset(selectedKey);
+                const autoAdjust = container.querySelector('#preset-auto-adjust').checked;
                 if (palette) {
-                    setPalette(palette);
-                    StatusBar.setMessage(`プリセット「${presets.find(p => p.key === selectedKey).name}」を適用しました`);
+                    if (autoAdjust && state.croppedImage) {
+                        /* プリセットベース＋自動微調整 */
+                        setPalette(palette); // 一旦プリセットを表示
+                        StatusBar.setMessage('プリセット微調整中...');
+                        const img = state.croppedImage;
+                        worker.postMessage({
+                            type: 'preset-adjust',
+                            data: img.data,
+                            totalPixels: img.width * img.height,
+                            presetPalette: palette,
+                            detectParams: state.skinDetectParams
+                        });
+                    } else {
+                        setPalette(palette);
+                        StatusBar.setMessage(`プリセット「${presets.find(p => p.key === selectedKey).name}」を適用しました`);
+                    }
                 }
             }
         });
@@ -319,24 +800,31 @@ const App = (() => {
         state.phase = 'converting';
         StatusBar.setMessage('変換中...');
 
-        /* 現時点ではベタ減色（ディザなし）で変換 */
-        const result = Palette.applyFlat(state.croppedImage, state.currentPalette);
-        state.convertedImage = result;
-        state.phase = 'done';
+        const img = state.croppedImage;
+        const skinOptions = getSkinOptions();
+        const ditherSelect = document.getElementById('dither-select');
+        const ditherStrength = document.getElementById('dither-strength');
+        const ditherType = ditherSelect ? ditherSelect.value : 'none';
 
-        /* 結果をプレビュー */
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = result.width;
-        tempCanvas.height = result.height;
-        const tempCtx = tempCanvas.getContext('2d');
-        tempCtx.putImageData(result, 0, 0);
-
-        previewCanvas.className = 'preview-mode';
-        drawCroppedPreview(tempCanvas);
-
-        Menu.enableEntry('reset');
-        StatusBar.setColors(state.currentPalette.length);
-        StatusBar.setMessage(`変換完了: ${result.width}×${result.height} / ${state.currentPalette.length}色`);
+        const msg = {
+            type: 'convert',
+            data: img.data,
+            width: img.width,
+            height: img.height,
+            palette: state.currentPalette,
+            ditherType: ditherType === 'checkerboard' || ditherType === 'bayer' ||
+                        ditherType === 'floyd-steinberg' || ditherType === 'random'
+                        ? ditherType : 'none',
+            ditherStrength: ditherStrength ? parseInt(ditherStrength.value) : 80,
+            bayerSize: 4,
+            randomSeed: 42,
+            skinOptions: skinOptions
+        };
+        /* 既存のマスクがあれば転送して再計算を省略 */
+        if (skinOptions && skinOptions.skinDither && skinOptions.skinDither.enabled && state.skinMask) {
+            msg.mask = state.skinMask;
+        }
+        worker.postMessage(msg);
     }
 
     function resetConvert() {
@@ -356,7 +844,47 @@ const App = (() => {
         drawCroppedPreview(tempCanvas);
 
         Menu.disableEntry('reset');
+        Menu.disableEntry('save-png');
+        Menu.disableEntry('save-bmp');
+        Menu.disableEntry('save-mag');
+        Menu.disableEntry('view-original');
+        Menu.disableEntry('view-converted');
+        Menu.disableEntry('view-compare');
+        Menu.disableEntry('view-zoom');
+        Preview.reset();
         StatusBar.setMessage('リセットしました - パラメータを調整してください');
+    }
+
+    /* --- ファイル保存 --- */
+    function getDefaultFileName(ext) {
+        const now = new Date();
+        const ts = now.getFullYear().toString() +
+            String(now.getMonth() + 1).padStart(2, '0') +
+            String(now.getDate()).padStart(2, '0') + '_' +
+            String(now.getHours()).padStart(2, '0') +
+            String(now.getMinutes()).padStart(2, '0') +
+            String(now.getSeconds()).padStart(2, '0');
+        const base = state.fileName ? state.fileName.replace(/\.[^.]+$/, '') : 'gazo98';
+        return `${base}_${ts}.${ext}`;
+    }
+
+    function savePNG() {
+        if (!state.convertedImage || !state.currentPalette) return;
+        PngExport.save(state.convertedImage, state.currentPalette, getDefaultFileName('png'));
+        StatusBar.setMessage('PNG保存完了');
+    }
+
+    function saveBMP() {
+        if (!state.convertedImage || !state.currentPalette) return;
+        BmpExport.save(state.convertedImage, state.currentPalette, getDefaultFileName('bmp'));
+        StatusBar.setMessage('BMP保存完了');
+    }
+
+    function saveMAG() {
+        if (!state.convertedImage || !state.currentPalette) return;
+        const comment = state.fileName || 'GAZO98';
+        MagExport.save(state.convertedImage, state.currentPalette, getDefaultFileName('mag'), comment);
+        StatusBar.setMessage('MAG保存完了');
     }
 
     /* --- 画像読み込み → クロップ開始 --- */
@@ -425,6 +953,9 @@ const App = (() => {
         state.currentPalette = null;
         state.phase = 'ready';
 
+        /* Previewリセット（ズーム等の状態をクリア） */
+        Preview.reset();
+
         /* クロップ結果をプレビュー表示 */
         previewCanvas.className = 'preview-mode';
         drawCroppedPreview(tempCanvas);
@@ -484,6 +1015,8 @@ const App = (() => {
         state.fileName = null;
         state.imageLoaded = false;
         state.phase = 'idle';
+        state.skinMask = null;
+        state.maskPreviewActive = false;
 
         previewCanvas.style.display = 'none';
         cropBar.style.display = 'none';
@@ -507,6 +1040,23 @@ const App = (() => {
         Menu.disableEntry('palette-edit');
         Menu.disableEntry('palette-import');
         Menu.disableEntry('palette-export');
+        Menu.disableEntry('save-png');
+        Menu.disableEntry('save-bmp');
+        Menu.disableEntry('save-mag');
+        Menu.disableEntry('view-original');
+        Menu.disableEntry('view-converted');
+        Menu.disableEntry('view-compare');
+        Menu.disableEntry('view-zoom');
+
+        /* エフェクトリセット */
+        document.getElementById('effect-scanline').disabled = true;
+        document.getElementById('effect-scanline').checked = false;
+        document.getElementById('effect-crt').disabled = true;
+        document.getElementById('effect-crt').checked = false;
+        document.getElementById('effect-sharp').disabled = true;
+        document.getElementById('effect-sharp').checked = false;
+
+        Preview.reset();
 
         const btnConvert = document.getElementById('btn-convert');
         if (btnConvert) {
@@ -518,6 +1068,18 @@ const App = (() => {
             btnPaletteEdit.classList.add('disabled');
             btnPaletteEdit.disabled = true;
         }
+
+        /* 肌感改善コントロールをリセット */
+        document.getElementById('skin-mode').disabled = true;
+        document.getElementById('skin-mode').value = 'off';
+        document.getElementById('skin-weight-settings').style.display = 'none';
+        document.getElementById('skin-separate-settings').style.display = 'none';
+        document.getElementById('skin-dither-enable').disabled = true;
+        document.getElementById('skin-dither-enable').checked = false;
+        document.getElementById('skin-dither-settings').style.display = 'none';
+        document.getElementById('btn-mask-preview').disabled = true;
+        document.getElementById('btn-mask-preview').textContent = '[ マスク確認 ]';
+        document.getElementById('btn-skin-detect-settings').disabled = true;
     }
 
     return { init, PC98, state };

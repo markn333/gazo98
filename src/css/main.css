@@ -306,6 +306,15 @@ body {
     margin: 0;
 }
 
+.preset-category {
+    padding: 4px 8px;
+    font-weight: bold;
+    color: #000080;
+    border-bottom: 1px dotted #ccc;
+    margin-top: 4px;
+    user-select: none;
+}
+
 .preset-item {
     display: flex;
     align-items: center;
