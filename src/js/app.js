@@ -132,7 +132,7 @@ const App = (() => {
                     .replace(/\n\n/g, '<br>');
 
                 const container = document.createElement('div');
-                container.style.cssText = 'font-size:12px;line-height:1.6;max-width:600px;';
+                container.style.cssText = 'font-size:14px;line-height:1.8;max-width:600px;font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;-webkit-font-smoothing:antialiased;';
                 container.innerHTML = html;
 
                 Dialog.show({
