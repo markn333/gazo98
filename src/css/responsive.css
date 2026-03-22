@@ -1,0 +1,205 @@
+/* ========================================
+   GAZO98 - レスポンシブ対応
+   768px以下でスマホレイアウトに切替
+   ======================================== */
+
+/* --- ハンバーガーメニューボタン --- */
+.hamburger-btn {
+    display: none;
+    background: none;
+    border: 1px solid #000;
+    color: #000;
+    font-size: 20px;
+    width: 28px;
+    height: 24px;
+    cursor: pointer;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+    padding: 0;
+    font-family: inherit;
+}
+
+/* --- パネルオーバーレイ（スマホ用スライドアップ） --- */
+.panel-overlay {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    /* メニューバー: ハンバーガー化 */
+    .pc98-menubar {
+        justify-content: space-between;
+    }
+
+    .pc98-menubar .menu-item {
+        display: none;
+    }
+
+    .hamburger-btn {
+        display: flex;
+    }
+
+    .pc98-menubar.menu-open .menu-item {
+        display: block;
+    }
+
+    .pc98-menubar.menu-open {
+        flex-wrap: wrap;
+        height: auto;
+    }
+
+    .pc98-menubar.menu-open .menu-item {
+        width: 100%;
+    }
+
+    /* メインコンテンツ */
+    #main-content {
+        padding: 4px;
+        gap: 4px;
+    }
+
+    /* プレビューエリア: 画面いっぱい */
+    #preview-area {
+        min-height: 150px;
+    }
+
+    /* コントロールパネル: 縦並び・スクロール */
+    #control-panel {
+        flex-direction: column;
+        gap: 4px;
+        max-height: 40vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+
+    #palette-panel {
+        flex: 0 0 auto;
+    }
+
+    #skin-panel {
+        flex: 0 0 auto;
+    }
+
+    #param-panel {
+        flex: 0 0 auto;
+    }
+
+    /* パネルタイトル: タップで開閉 */
+    .pc98-panel .panel-title {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .pc98-panel .panel-title::after {
+        content: ' ▼';
+        font-size: 10px;
+    }
+
+    .pc98-panel.collapsed .panel-title::after {
+        content: ' ▶';
+    }
+
+    .pc98-panel.collapsed > *:not(.panel-title) {
+        display: none !important;
+    }
+
+    /* パラメータ行: ラベル幅縮小 */
+    .param-row label {
+        min-width: 48px;
+        font-size: 12px;
+    }
+
+    .param-row {
+        font-size: 12px;
+        gap: 4px;
+        margin-bottom: 4px;
+    }
+
+    /* パレットグリッド */
+    .palette-cell {
+        min-width: 12px;
+        min-height: 12px;
+    }
+
+    /* クロップバー: 縦並び */
+    .crop-bar-inner {
+        flex-wrap: wrap;
+        gap: 6px;
+        padding: 6px;
+    }
+
+    .crop-info {
+        width: 100%;
+        text-align: center;
+        margin-right: 0;
+    }
+
+    /* アクションバー */
+    #action-bar {
+        gap: 4px;
+    }
+
+    #action-bar .pc98-button {
+        font-size: 12px;
+        padding: 4px 8px;
+    }
+
+    /* ステータスバー */
+    .pc98-statusbar {
+        font-size: 11px;
+        padding: 1px 4px;
+    }
+
+    .status-sep {
+        display: none;
+    }
+
+    #status-app {
+        display: none;
+    }
+
+    /* ダイアログ: 画面幅いっぱい */
+    .pc98-dialog {
+        max-width: 95vw;
+        max-height: 80vh;
+    }
+
+    .dialog-body {
+        max-height: 50vh;
+        overflow-y: auto;
+        padding: 8px;
+        font-size: 12px;
+    }
+
+    /* プリセット */
+    .preset-color-chip {
+        width: 10px;
+        height: 10px;
+    }
+}
+
+/* 小さいスマホ（幅480px以下） */
+@media (max-width: 480px) {
+    .pc98-menubar {
+        height: 22px;
+        font-size: 12px;
+    }
+
+    #preview-area {
+        min-height: 120px;
+    }
+
+    #control-panel {
+        max-height: 35vh;
+    }
+
+    .palette-grid {
+        grid-template-columns: repeat(8, 1fr);
+        gap: 0;
+    }
+
+    .palette-cell {
+        min-width: 8px;
+        min-height: 8px;
+    }
+}

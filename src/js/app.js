@@ -73,6 +73,36 @@ const App = (() => {
         initPaletteDisplay();
 
         StatusBar.setMessage('Ready - 画像をドラッグ＆ドロップしてください');
+
+        setupHamburger();
+        setupPanelCollapse();
+    }
+
+    /* --- ハンバーガーメニュー（スマホ用） --- */
+    function setupHamburger() {
+        const btn = document.getElementById('hamburger-btn');
+        const menubar = document.getElementById('menubar');
+        if (!btn) return;
+
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            menubar.classList.toggle('menu-open');
+        });
+
+        document.addEventListener('click', () => {
+            menubar.classList.remove('menu-open');
+        });
+    }
+
+    /* --- パネル折り畳み（スマホ用） --- */
+    function setupPanelCollapse() {
+        document.querySelectorAll('.pc98-panel .panel-title').forEach(title => {
+            title.addEventListener('click', () => {
+                /* スマホ幅のみ動作 */
+                if (window.innerWidth > 768) return;
+                title.parentElement.classList.toggle('collapsed');
+            });
+        });
     }
 
     function setupMenuActions() {
