@@ -265,20 +265,32 @@ const App = (() => {
             }
         });
 
-        /* 重みスライダー */
+        /* 重みスライダー（ドラッグ中は表示のみ、離したら再生成） */
         skinWeight.addEventListener('input', () => {
             skinWeightValue.textContent = (skinWeight.value / 10).toFixed(1);
+        });
+        skinWeight.addEventListener('change', () => {
+            if (state.croppedImage && skinMode.value === 'weight') generateSkinPalette();
+        });
+
+        /* 最低枠数 */
+        skinMinColors.addEventListener('change', () => {
+            if (state.croppedImage && skinMode.value === 'weight') generateSkinPalette();
         });
 
         /* 領域分離: 配分方式 */
         skinSplitMode.addEventListener('change', () => {
             document.getElementById('skin-palette-count-row').style.display =
                 skinSplitMode.value === 'manual' ? '' : 'none';
+            if (state.croppedImage && skinMode.value === 'separate') generateSkinPalette();
         });
 
-        /* 肌色枠数スライダー */
+        /* 肌色枠数スライダー（ドラッグ中は表示のみ、離したら再生成） */
         skinPaletteCount.addEventListener('input', () => {
             skinPaletteCountValue.textContent = skinPaletteCount.value + '色';
+        });
+        skinPaletteCount.addEventListener('change', () => {
+            if (state.croppedImage && skinMode.value === 'separate') generateSkinPalette();
         });
 
         /* 肌専用ディザ */
