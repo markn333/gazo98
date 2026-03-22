@@ -132,8 +132,9 @@ const App = (() => {
                     .replace(/\n\n/g, '<br>');
 
                 const container = document.createElement('div');
-                container.style.cssText = 'font-size:14px;line-height:1.8;max-width:600px;font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif;-webkit-font-smoothing:antialiased;';
-                container.innerHTML = html;
+                container.innerHTML = '<style>.manual-view,.manual-view *{font-family:"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic","Meiryo",sans-serif !important;-webkit-font-smoothing:antialiased !important;image-rendering:auto !important;}</style>' + html;
+                container.className = 'manual-view';
+                container.style.cssText = 'font-size:14px;line-height:1.8;max-width:600px;';
 
                 Dialog.show({
                     title: '操作マニュアル',
