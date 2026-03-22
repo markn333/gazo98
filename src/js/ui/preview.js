@@ -248,21 +248,24 @@ const Preview = (() => {
         if (e.touches.length === 1) {
             dragging = true;
 
-            /* 比較モードでは分割線付近ならsplitドラッグ */
-            if (mode === 'compare') {
-                const rect = canvas.getBoundingClientRect();
-                const x = (e.touches[0].clientX - rect.left) / canvas.width;
-                dragType = Math.abs(x - splitX) < 0.08 ? 'split' : 'pan';
-            } else {
-                dragType = 'pan';
-            }
+            /* 比較モード: 1本指は常に分割線移動 */
+            /* それ以外: 1本指はパン */
+            dragType = (mode === 'compare') ? 'split' : 'pan';
 
             dragStartX = e.touches[0].clientX;
             dragStartY = e.touches[0].clientY;
             dragStartPanX = panX;
             dragStartPanY = panY;
         } else if (e.touches.length === 2) {
-            dragging = false;
+            /* 2本指: 比較モードでもパン＆ズーム */
+            dragging = true;
+            dragType = 'pan';
+            const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            dragStartX = cx;
+            dragStartY = cy;
+            dragStartPanX = panX;
+            dragStartPanY = panY;
             lastTouchDist = getTouchDistance(e.touches);
         }
     }
@@ -282,12 +285,21 @@ const Preview = (() => {
                 render();
             }
         } else if (e.touches.length === 2) {
+            /* ピンチズーム */
             const dist = getTouchDistance(e.touches);
             if (lastTouchDist > 0) {
-                const scale = dist / lastTouchDist;
-                setZoom(zoom * scale);
+                const ratio = dist / lastTouchDist;
+                setZoom(zoom * ratio);
             }
             lastTouchDist = dist;
+
+            /* 2本指パン */
+            const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+            const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+            panX = dragStartPanX - (cx - dragStartX);
+            panY = dragStartPanY - (cy - dragStartY);
+            clampPan();
+            render();
         }
     }
 
