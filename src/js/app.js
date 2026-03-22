@@ -78,6 +78,74 @@ const App = (() => {
         setupPanelCollapse();
     }
 
+    /* --- ヘルプ --- */
+    function showAbout() {
+        Dialog.show({
+            title: 'GAZO98 ～画嬢九八～',
+            body: `
+                <div style="text-align:center;">
+                    <p style="font-size:18px;font-weight:bold;margin-bottom:8px;">GAZO98 ～画嬢九八～</p>
+                    <p>Version 1.0.0</p>
+                    <p style="margin-top:12px;font-size:12px;">
+                        PC-9801エロゲ風画像コンバーター<br>
+                        フルカラー画像を4096色中16色＋ディザリングで<br>
+                        PC-98風に変換するWebアプリ
+                    </p>
+                    <p style="margin-top:12px;font-size:11px;color:#666;">
+                        出力形式: PNG / BMP / MAG(MAKI02)<br>
+                        ブラウザ完結・サーバー不要
+                    </p>
+                </div>
+            `,
+            buttons: [{ label: 'OK', value: 'ok' }]
+        });
+    }
+
+    function showManual() {
+        fetch('docs/USER_MANUAL.md')
+            .then(res => {
+                if (!res.ok) throw new Error('マニュアルが見つかりません');
+                return res.text();
+            })
+            .then(md => {
+                /* 簡易Markdown→HTML変換 */
+                let html = md
+                    .replace(/^### (.+)$/gm, '<h4>$1</h4>')
+                    .replace(/^## (.+)$/gm, '<h3 style="margin-top:16px;border-bottom:1px solid #999;padding-bottom:4px;">$1</h3>')
+                    .replace(/^# (.+)$/gm, '<h2>$1</h2>')
+                    .replace(/^\|(.+)\|$/gm, (match) => {
+                        const cells = match.split('|').filter(c => c.trim());
+                        return '<tr>' + cells.map(c => `<td style="padding:2px 6px;border:1px solid #ccc;">${c.trim()}</td>`).join('') + '</tr>';
+                    })
+                    .replace(/(<tr>.*<\/tr>\n?)+/g, (match) => {
+                        /* ヘッダ区切り行（---）を除去 */
+                        const rows = match.split('\n').filter(r => r.trim() && !r.match(/^<tr>(<td[^>]*>\s*-+\s*<\/td>)+<\/tr>$/));
+                        if (rows.length === 0) return '';
+                        return '<table style="border-collapse:collapse;margin:8px 0;font-size:12px;">' + rows.join('\n') + '</table>';
+                    })
+                    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/`([^`]+)`/g, '<code style="background:#e0e0e0;padding:1px 3px;">$1</code>')
+                    .replace(/^> (.+)$/gm, '<blockquote style="border-left:3px solid #000080;padding-left:8px;margin:8px 0;color:#333;">$1</blockquote>')
+                    .replace(/^- (.+)$/gm, '<li>$1</li>')
+                    .replace(/(<li>.*<\/li>\n?)+/g, (match) => '<ul style="margin:4px 0 4px 16px;">' + match + '</ul>')
+                    .replace(/^---$/gm, '<hr style="margin:12px 0;">')
+                    .replace(/\n\n/g, '<br>');
+
+                const container = document.createElement('div');
+                container.style.cssText = 'font-size:12px;line-height:1.6;max-width:600px;';
+                container.innerHTML = html;
+
+                Dialog.show({
+                    title: '操作マニュアル',
+                    body: container,
+                    buttons: [{ label: '閉じる', value: 'ok' }]
+                });
+            })
+            .catch(err => {
+                Dialog.alert('エラー', err.message);
+            });
+    }
+
     /* --- ハンバーガーメニュー（スマホ用） --- */
     function setupHamburger() {
         const btn = document.getElementById('hamburger-btn');
@@ -125,6 +193,10 @@ const App = (() => {
         Menu.on('palette-edit', () => editPalette());
         Menu.on('palette-import', () => importPalette());
         Menu.on('palette-export', () => exportPalette());
+
+        /* ヘルプメニュー */
+        Menu.on('help-manual', () => showManual());
+        Menu.on('help-about', () => showAbout());
 
         /* 表示メニュー */
         Menu.on('view-original', () => setViewMode('original'));
