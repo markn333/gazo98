@@ -247,12 +247,22 @@ const Preview = (() => {
         e.preventDefault();
         if (e.touches.length === 1) {
             dragging = true;
-            dragType = 'pan';
+
+            /* 比較モードでは分割線付近ならsplitドラッグ */
+            if (mode === 'compare') {
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.touches[0].clientX - rect.left) / canvas.width;
+                dragType = Math.abs(x - splitX) < 0.08 ? 'split' : 'pan';
+            } else {
+                dragType = 'pan';
+            }
+
             dragStartX = e.touches[0].clientX;
             dragStartY = e.touches[0].clientY;
             dragStartPanX = panX;
             dragStartPanY = panY;
         } else if (e.touches.length === 2) {
+            dragging = false;
             lastTouchDist = getTouchDistance(e.touches);
         }
     }
@@ -261,10 +271,16 @@ const Preview = (() => {
         if (!active) return;
         e.preventDefault();
         if (e.touches.length === 1 && dragging) {
-            panX = dragStartPanX - (e.touches[0].clientX - dragStartX);
-            panY = dragStartPanY - (e.touches[0].clientY - dragStartY);
-            clampPan();
-            render();
+            if (dragType === 'split') {
+                const rect = canvas.getBoundingClientRect();
+                splitX = Math.max(0.05, Math.min(0.95, (e.touches[0].clientX - rect.left) / canvas.width));
+                render();
+            } else {
+                panX = dragStartPanX - (e.touches[0].clientX - dragStartX);
+                panY = dragStartPanY - (e.touches[0].clientY - dragStartY);
+                clampPan();
+                render();
+            }
         } else if (e.touches.length === 2) {
             const dist = getTouchDistance(e.touches);
             if (lastTouchDist > 0) {
