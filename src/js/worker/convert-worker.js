@@ -285,8 +285,13 @@ function medianCutWeighted(data, totalPixels, numColors, skinWeight, minSkinColo
         }
     }
 
-    self.postMessage({ type: 'progress', phase: 'skin-weighted', percent: 50 });
+    self.postMessage({ type: 'progress', phase: 'skin-weighted', percent: 40 });
     let palette = runMedianCut(pixels, numColors);
+
+    /* 近すぎる肌色パレットを統合し、空いた枠を非肌色に再配分 */
+    palette = deduplicateAndRecycle(palette, data, totalPixels, detectParams, sampleStep);
+
+    self.postMessage({ type: 'progress', phase: 'skin-weighted', percent: 70 });
 
     /* 最低肌色枠数の保証 */
     if (minSkinColors > 0) {
@@ -295,6 +300,69 @@ function medianCutWeighted(data, totalPixels, numColors, skinWeight, minSkinColo
 
     self.postMessage({ type: 'progress', phase: 'skin-weighted', percent: 100 });
     return palette;
+}
+
+/**
+ * 近すぎるパレット色を統合し、空いた枠を非肌色ピクセルで再配分
+ * 重み4-5でも無駄な枠が発生しないようにする
+ */
+function deduplicateAndRecycle(palette, data, totalPixels, detectParams, sampleStep) {
+    const MIN_DIST = 20; // この距離以下は「近すぎる」（RGB空間のユークリッド距離）
+
+    /* 肌色パレット同士の距離をチェックして統合対象を特定 */
+    const removed = new Set();
+    for (let i = 0; i < palette.length; i++) {
+        if (removed.has(i)) continue;
+        if (!isSkinHSV(palette[i][0], palette[i][1], palette[i][2], detectParams)) continue;
+
+        for (let j = i + 1; j < palette.length; j++) {
+            if (removed.has(j)) continue;
+            if (!isSkinHSV(palette[j][0], palette[j][1], palette[j][2], detectParams)) continue;
+
+            const dr = palette[i][0] - palette[j][0];
+            const dg = palette[i][1] - palette[j][1];
+            const db = palette[i][2] - palette[j][2];
+            const dist = Math.sqrt(dr * dr + dg * dg + db * db);
+
+            if (dist < MIN_DIST) {
+                /* jを除去（iに統合） */
+                removed.add(j);
+            }
+        }
+    }
+
+    if (removed.size === 0) return palette;
+
+    /* 空いた枠を非肌色ピクセルのメディアンカットで埋める */
+    const nonSkinPixels = [];
+    for (let i = 0; i < totalPixels; i += sampleStep) {
+        const idx = i * 4;
+        const r = data[idx], g = data[idx + 1], b = data[idx + 2];
+        if (!isSkinHSV(r, g, b, detectParams)) {
+            nonSkinPixels.push([r, g, b]);
+        }
+    }
+
+    const newNonSkin = nonSkinPixels.length > 0
+        ? runMedianCut(nonSkinPixels, removed.size)
+        : [];
+
+    /* パレット再構築 */
+    const result = [];
+    let recycleIdx = 0;
+    for (let i = 0; i < palette.length; i++) {
+        if (removed.has(i)) {
+            if (recycleIdx < newNonSkin.length) {
+                result.push(newNonSkin[recycleIdx++]);
+            } else {
+                result.push(palette[i]); // 埋まらなければ元のまま
+            }
+        } else {
+            result.push(palette[i]);
+        }
+    }
+
+    return result;
 }
 
 function ensureMinSkinColors(palette, data, totalPixels, numColors, minSkinColors, detectParams) {
