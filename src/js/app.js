@@ -882,8 +882,47 @@ const App = (() => {
 
     function savePNG() {
         if (!state.convertedImage || !state.currentPalette) return;
-        PngExport.save(state.convertedImage, state.currentPalette, getDefaultFileName('png'));
-        StatusBar.setMessage('PNG保存完了');
+
+        const effects = getEffectOptions();
+        const hasEffect = effects.scanline.enabled || effects.crt.enabled || effects.sharp.enabled;
+
+        if (hasEffect) {
+            Dialog.show({
+                title: 'PNG保存',
+                body: '<p>エフェクトをどちらで保存しますか？</p><p>エフェクト付き = フルカラーPNG<br>エフェクトなし = 16色インデックスPNG</p>',
+                buttons: [
+                    { label: 'エフェクト付き', value: 'with' },
+                    { label: 'エフェクトなし', value: 'without' },
+                    { label: 'Cancel', value: 'cancel' }
+                ]
+            }).then(result => {
+                if (result === 'with') {
+                    /* フルカラーPNG（エフェクト付き） */
+                    const effected = PostEffect.apply(state.convertedImage, effects);
+                    const c = document.createElement('canvas');
+                    c.width = effected.width;
+                    c.height = effected.height;
+                    c.getContext('2d').putImageData(effected, 0, 0);
+                    c.toBlob(blob => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = getDefaultFileName('png');
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url);
+                    }, 'image/png');
+                    StatusBar.setMessage('PNG保存完了（エフェクト付き・フルカラー）');
+                } else if (result === 'without') {
+                    PngExport.save(state.convertedImage, state.currentPalette, getDefaultFileName('png'));
+                    StatusBar.setMessage('PNG保存完了（16色インデックス）');
+                }
+            });
+        } else {
+            PngExport.save(state.convertedImage, state.currentPalette, getDefaultFileName('png'));
+            StatusBar.setMessage('PNG保存完了');
+        }
     }
 
     function saveBMP() {
